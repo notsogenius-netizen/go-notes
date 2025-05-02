@@ -40,9 +40,10 @@ func (c *Client) CreateNote(ctx context.Context, userID, title, content string) 
 }
 
 // GetNote gets a note by ID
-func (c *Client) GetNote(ctx context.Context, id string) (*pb.Note, error) {
+func (c *Client) GetNote(ctx context.Context, id, user_id string) (*pb.Note, error) {
 	return c.client.GetNote(ctx, &pb.GetNoteRequest{
 		Id: id,
+		UserId: user_id,
 	})
 }
 

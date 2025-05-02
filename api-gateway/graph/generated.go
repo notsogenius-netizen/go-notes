@@ -16,7 +16,6 @@ import (
 	"github.com/99designs/gqlgen/graphql"
 	"github.com/99designs/gqlgen/graphql/introspection"
 	"github.com/notsogenius-netizen/go-notes/api-gateway/graph/model"
-	"github.com/notsogenius-netizen/go-notes/api-gateway/proto/gen"
 	gqlparser "github.com/vektah/gqlparser/v2"
 	"github.com/vektah/gqlparser/v2/ast"
 )
@@ -52,50 +51,53 @@ type DirectiveRoot struct {
 
 type ComplexityRoot struct {
 	Mutation struct {
-		CreateNote func(childComplexity int, userID string, title string, content string) int
-		DeleteNote func(childComplexity int, id string) int
-		UpdateNote func(childComplexity int, id string, title *string, content *string) int
+		CreateNote func(childComplexity int, input model.CreateNoteInput) int
+		DeleteNote func(childComplexity int, id string, userID string) int
+		UpdateNote func(childComplexity int, input model.UpdateNoteInput) int
 	}
 
 	Note struct {
 		Content   func(childComplexity int) int
 		CreatedAt func(childComplexity int) int
-		Id        func(childComplexity int) int
+		ID        func(childComplexity int) int
 		Title     func(childComplexity int) int
 		UpdatedAt func(childComplexity int) int
-		UserId    func(childComplexity int) int
+		UserID    func(childComplexity int) int
 	}
 
-	NoteChangeEvent struct {
-		Note      func(childComplexity int) int
-		Operation func(childComplexity int) int
+	NoteChange struct {
+		Note func(childComplexity int) int
+		Type func(childComplexity int) int
 	}
 
 	Query struct {
-		Note  func(childComplexity int, id string) int
-		Notes func(childComplexity int, userID string) int
+		GetNote   func(childComplexity int, id string, userID string) int
+		ListNotes func(childComplexity int, userID string) int
 	}
 
 	Subscription struct {
-		NoteChanged func(childComplexity int, userID string) int
+		WatchNotes func(childComplexity int, userID string) int
 	}
 }
 
 type MutationResolver interface {
-	CreateNote(ctx context.Context, userID string, title string, content string) (*gen.Note, error)
-	UpdateNote(ctx context.Context, id string, title *string, content *string) (*gen.Note, error)
-	DeleteNote(ctx context.Context, id string) (bool, error)
+	CreateNote(ctx context.Context, input model.CreateNoteInput) (*model.Note, error)
+	UpdateNote(ctx context.Context, input model.UpdateNoteInput) (*model.Note, error)
+	DeleteNote(ctx context.Context, id string, userID string) (bool, error)
 }
 type NoteResolver interface {
-	CreatedAt(ctx context.Context, obj *gen.Note) (string, error)
-	UpdatedAt(ctx context.Context, obj *gen.Note) (string, error)
+	CreatedAt(ctx context.Context, obj *model.Note) (string, error)
+	UpdatedAt(ctx context.Context, obj *model.Note) (string, error)
 }
 type QueryResolver interface {
-	Note(ctx context.Context, id string) (*gen.Note, error)
-	Notes(ctx context.Context, userID string) ([]*gen.Note, error)
+	GetNote(ctx context.Context, id string, userID string) (*model.Note, error)
+	ListNotes(ctx context.Context, userID string) ([]*model.Note, error)
 }
 type SubscriptionResolver interface {
-	NoteChanged(ctx context.Context, userID string) (<-chan *model.NoteChangeEvent, error)
+	WatchNotes(ctx context.Context, userID string) (<-chan *model.NoteChange, error)
+}
+type NoteChangeResolver interface {
+	Type(ctx context.Context, obj *model.NoteChange) (model.NoteChangeType, error)
 }
 
 type executableSchema struct {
@@ -127,7 +129,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.complexity.Mutation.CreateNote(childComplexity, args["userId"].(string), args["title"].(string), args["content"].(string)), true
+		return e.complexity.Mutation.CreateNote(childComplexity, args["input"].(model.CreateNoteInput)), true
 
 	case "Mutation.deleteNote":
 		if e.complexity.Mutation.DeleteNote == nil {
@@ -139,7 +141,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.complexity.Mutation.DeleteNote(childComplexity, args["id"].(string)), true
+		return e.complexity.Mutation.DeleteNote(childComplexity, args["id"].(string), args["userId"].(string)), true
 
 	case "Mutation.updateNote":
 		if e.complexity.Mutation.UpdateNote == nil {
@@ -151,7 +153,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.complexity.Mutation.UpdateNote(childComplexity, args["id"].(string), args["title"].(*string), args["content"].(*string)), true
+		return e.complexity.Mutation.UpdateNote(childComplexity, args["input"].(model.UpdateNoteInput)), true
 
 	case "Note.content":
 		if e.complexity.Note.Content == nil {
@@ -168,11 +170,11 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		return e.complexity.Note.CreatedAt(childComplexity), true
 
 	case "Note.id":
-		if e.complexity.Note.Id == nil {
+		if e.complexity.Note.ID == nil {
 			break
 		}
 
-		return e.complexity.Note.Id(childComplexity), true
+		return e.complexity.Note.ID(childComplexity), true
 
 	case "Note.title":
 		if e.complexity.Note.Title == nil {
@@ -189,61 +191,61 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		return e.complexity.Note.UpdatedAt(childComplexity), true
 
 	case "Note.userId":
-		if e.complexity.Note.UserId == nil {
+		if e.complexity.Note.UserID == nil {
 			break
 		}
 
-		return e.complexity.Note.UserId(childComplexity), true
+		return e.complexity.Note.UserID(childComplexity), true
 
-	case "NoteChangeEvent.note":
-		if e.complexity.NoteChangeEvent.Note == nil {
+	case "NoteChange.note":
+		if e.complexity.NoteChange.Note == nil {
 			break
 		}
 
-		return e.complexity.NoteChangeEvent.Note(childComplexity), true
+		return e.complexity.NoteChange.Note(childComplexity), true
 
-	case "NoteChangeEvent.operation":
-		if e.complexity.NoteChangeEvent.Operation == nil {
+	case "NoteChange.type":
+		if e.complexity.NoteChange.Type == nil {
 			break
 		}
 
-		return e.complexity.NoteChangeEvent.Operation(childComplexity), true
+		return e.complexity.NoteChange.Type(childComplexity), true
 
-	case "Query.note":
-		if e.complexity.Query.Note == nil {
+	case "Query.getNote":
+		if e.complexity.Query.GetNote == nil {
 			break
 		}
 
-		args, err := ec.field_Query_note_args(ctx, rawArgs)
+		args, err := ec.field_Query_getNote_args(ctx, rawArgs)
 		if err != nil {
 			return 0, false
 		}
 
-		return e.complexity.Query.Note(childComplexity, args["id"].(string)), true
+		return e.complexity.Query.GetNote(childComplexity, args["id"].(string), args["userId"].(string)), true
 
-	case "Query.notes":
-		if e.complexity.Query.Notes == nil {
+	case "Query.listNotes":
+		if e.complexity.Query.ListNotes == nil {
 			break
 		}
 
-		args, err := ec.field_Query_notes_args(ctx, rawArgs)
+		args, err := ec.field_Query_listNotes_args(ctx, rawArgs)
 		if err != nil {
 			return 0, false
 		}
 
-		return e.complexity.Query.Notes(childComplexity, args["userId"].(string)), true
+		return e.complexity.Query.ListNotes(childComplexity, args["userId"].(string)), true
 
-	case "Subscription.noteChanged":
-		if e.complexity.Subscription.NoteChanged == nil {
+	case "Subscription.watchNotes":
+		if e.complexity.Subscription.WatchNotes == nil {
 			break
 		}
 
-		args, err := ec.field_Subscription_noteChanged_args(ctx, rawArgs)
+		args, err := ec.field_Subscription_watchNotes_args(ctx, rawArgs)
 		if err != nil {
 			return 0, false
 		}
 
-		return e.complexity.Subscription.NoteChanged(childComplexity, args["userId"].(string)), true
+		return e.complexity.Subscription.WatchNotes(childComplexity, args["userId"].(string)), true
 
 	}
 	return 0, false
@@ -252,7 +254,10 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 	opCtx := graphql.GetOperationContext(ctx)
 	ec := executionContext{opCtx, e, 0, 0, make(chan graphql.DeferredResult)}
-	inputUnmarshalMap := graphql.BuildUnmarshalerMap()
+	inputUnmarshalMap := graphql.BuildUnmarshalerMap(
+		ec.unmarshalInputCreateNoteInput,
+		ec.unmarshalInputUpdateNoteInput,
+	)
 	first := true
 
 	switch opCtx.Operation.Operation {
@@ -388,59 +393,23 @@ var parsedSchema = gqlparser.MustLoadSchema(sources...)
 func (ec *executionContext) field_Mutation_createNote_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
-	arg0, err := ec.field_Mutation_createNote_argsUserID(ctx, rawArgs)
+	arg0, err := ec.field_Mutation_createNote_argsInput(ctx, rawArgs)
 	if err != nil {
 		return nil, err
 	}
-	args["userId"] = arg0
-	arg1, err := ec.field_Mutation_createNote_argsTitle(ctx, rawArgs)
-	if err != nil {
-		return nil, err
-	}
-	args["title"] = arg1
-	arg2, err := ec.field_Mutation_createNote_argsContent(ctx, rawArgs)
-	if err != nil {
-		return nil, err
-	}
-	args["content"] = arg2
+	args["input"] = arg0
 	return args, nil
 }
-func (ec *executionContext) field_Mutation_createNote_argsUserID(
+func (ec *executionContext) field_Mutation_createNote_argsInput(
 	ctx context.Context,
 	rawArgs map[string]any,
-) (string, error) {
-	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("userId"))
-	if tmp, ok := rawArgs["userId"]; ok {
-		return ec.unmarshalNString2string(ctx, tmp)
+) (model.CreateNoteInput, error) {
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("input"))
+	if tmp, ok := rawArgs["input"]; ok {
+		return ec.unmarshalNCreateNoteInput2githubᚗcomᚋnotsogeniusᚑnetizenᚋgoᚑnotesᚋapiᚑgatewayᚋgraphᚋmodelᚐCreateNoteInput(ctx, tmp)
 	}
 
-	var zeroVal string
-	return zeroVal, nil
-}
-
-func (ec *executionContext) field_Mutation_createNote_argsTitle(
-	ctx context.Context,
-	rawArgs map[string]any,
-) (string, error) {
-	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("title"))
-	if tmp, ok := rawArgs["title"]; ok {
-		return ec.unmarshalNString2string(ctx, tmp)
-	}
-
-	var zeroVal string
-	return zeroVal, nil
-}
-
-func (ec *executionContext) field_Mutation_createNote_argsContent(
-	ctx context.Context,
-	rawArgs map[string]any,
-) (string, error) {
-	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("content"))
-	if tmp, ok := rawArgs["content"]; ok {
-		return ec.unmarshalNString2string(ctx, tmp)
-	}
-
-	var zeroVal string
+	var zeroVal model.CreateNoteInput
 	return zeroVal, nil
 }
 
@@ -452,6 +421,11 @@ func (ec *executionContext) field_Mutation_deleteNote_args(ctx context.Context, 
 		return nil, err
 	}
 	args["id"] = arg0
+	arg1, err := ec.field_Mutation_deleteNote_argsUserID(ctx, rawArgs)
+	if err != nil {
+		return nil, err
+	}
+	args["userId"] = arg1
 	return args, nil
 }
 func (ec *executionContext) field_Mutation_deleteNote_argsID(
@@ -467,62 +441,39 @@ func (ec *executionContext) field_Mutation_deleteNote_argsID(
 	return zeroVal, nil
 }
 
-func (ec *executionContext) field_Mutation_updateNote_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
-	var err error
-	args := map[string]any{}
-	arg0, err := ec.field_Mutation_updateNote_argsID(ctx, rawArgs)
-	if err != nil {
-		return nil, err
-	}
-	args["id"] = arg0
-	arg1, err := ec.field_Mutation_updateNote_argsTitle(ctx, rawArgs)
-	if err != nil {
-		return nil, err
-	}
-	args["title"] = arg1
-	arg2, err := ec.field_Mutation_updateNote_argsContent(ctx, rawArgs)
-	if err != nil {
-		return nil, err
-	}
-	args["content"] = arg2
-	return args, nil
-}
-func (ec *executionContext) field_Mutation_updateNote_argsID(
+func (ec *executionContext) field_Mutation_deleteNote_argsUserID(
 	ctx context.Context,
 	rawArgs map[string]any,
 ) (string, error) {
-	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("id"))
-	if tmp, ok := rawArgs["id"]; ok {
-		return ec.unmarshalNID2string(ctx, tmp)
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("userId"))
+	if tmp, ok := rawArgs["userId"]; ok {
+		return ec.unmarshalNString2string(ctx, tmp)
 	}
 
 	var zeroVal string
 	return zeroVal, nil
 }
 
-func (ec *executionContext) field_Mutation_updateNote_argsTitle(
-	ctx context.Context,
-	rawArgs map[string]any,
-) (*string, error) {
-	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("title"))
-	if tmp, ok := rawArgs["title"]; ok {
-		return ec.unmarshalOString2ᚖstring(ctx, tmp)
+func (ec *executionContext) field_Mutation_updateNote_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := ec.field_Mutation_updateNote_argsInput(ctx, rawArgs)
+	if err != nil {
+		return nil, err
 	}
-
-	var zeroVal *string
-	return zeroVal, nil
+	args["input"] = arg0
+	return args, nil
 }
-
-func (ec *executionContext) field_Mutation_updateNote_argsContent(
+func (ec *executionContext) field_Mutation_updateNote_argsInput(
 	ctx context.Context,
 	rawArgs map[string]any,
-) (*string, error) {
-	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("content"))
-	if tmp, ok := rawArgs["content"]; ok {
-		return ec.unmarshalOString2ᚖstring(ctx, tmp)
+) (model.UpdateNoteInput, error) {
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("input"))
+	if tmp, ok := rawArgs["input"]; ok {
+		return ec.unmarshalNUpdateNoteInput2githubᚗcomᚋnotsogeniusᚑnetizenᚋgoᚑnotesᚋapiᚑgatewayᚋgraphᚋmodelᚐUpdateNoteInput(ctx, tmp)
 	}
 
-	var zeroVal *string
+	var zeroVal model.UpdateNoteInput
 	return zeroVal, nil
 }
 
@@ -549,17 +500,22 @@ func (ec *executionContext) field_Query___type_argsName(
 	return zeroVal, nil
 }
 
-func (ec *executionContext) field_Query_note_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+func (ec *executionContext) field_Query_getNote_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
-	arg0, err := ec.field_Query_note_argsID(ctx, rawArgs)
+	arg0, err := ec.field_Query_getNote_argsID(ctx, rawArgs)
 	if err != nil {
 		return nil, err
 	}
 	args["id"] = arg0
+	arg1, err := ec.field_Query_getNote_argsUserID(ctx, rawArgs)
+	if err != nil {
+		return nil, err
+	}
+	args["userId"] = arg1
 	return args, nil
 }
-func (ec *executionContext) field_Query_note_argsID(
+func (ec *executionContext) field_Query_getNote_argsID(
 	ctx context.Context,
 	rawArgs map[string]any,
 ) (string, error) {
@@ -572,17 +528,7 @@ func (ec *executionContext) field_Query_note_argsID(
 	return zeroVal, nil
 }
 
-func (ec *executionContext) field_Query_notes_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
-	var err error
-	args := map[string]any{}
-	arg0, err := ec.field_Query_notes_argsUserID(ctx, rawArgs)
-	if err != nil {
-		return nil, err
-	}
-	args["userId"] = arg0
-	return args, nil
-}
-func (ec *executionContext) field_Query_notes_argsUserID(
+func (ec *executionContext) field_Query_getNote_argsUserID(
 	ctx context.Context,
 	rawArgs map[string]any,
 ) (string, error) {
@@ -595,17 +541,40 @@ func (ec *executionContext) field_Query_notes_argsUserID(
 	return zeroVal, nil
 }
 
-func (ec *executionContext) field_Subscription_noteChanged_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+func (ec *executionContext) field_Query_listNotes_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
-	arg0, err := ec.field_Subscription_noteChanged_argsUserID(ctx, rawArgs)
+	arg0, err := ec.field_Query_listNotes_argsUserID(ctx, rawArgs)
 	if err != nil {
 		return nil, err
 	}
 	args["userId"] = arg0
 	return args, nil
 }
-func (ec *executionContext) field_Subscription_noteChanged_argsUserID(
+func (ec *executionContext) field_Query_listNotes_argsUserID(
+	ctx context.Context,
+	rawArgs map[string]any,
+) (string, error) {
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("userId"))
+	if tmp, ok := rawArgs["userId"]; ok {
+		return ec.unmarshalNString2string(ctx, tmp)
+	}
+
+	var zeroVal string
+	return zeroVal, nil
+}
+
+func (ec *executionContext) field_Subscription_watchNotes_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := ec.field_Subscription_watchNotes_argsUserID(ctx, rawArgs)
+	if err != nil {
+		return nil, err
+	}
+	args["userId"] = arg0
+	return args, nil
+}
+func (ec *executionContext) field_Subscription_watchNotes_argsUserID(
 	ctx context.Context,
 	rawArgs map[string]any,
 ) (string, error) {
@@ -732,7 +701,7 @@ func (ec *executionContext) _Mutation_createNote(ctx context.Context, field grap
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Mutation().CreateNote(rctx, fc.Args["userId"].(string), fc.Args["title"].(string), fc.Args["content"].(string))
+		return ec.resolvers.Mutation().CreateNote(rctx, fc.Args["input"].(model.CreateNoteInput))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -744,9 +713,9 @@ func (ec *executionContext) _Mutation_createNote(ctx context.Context, field grap
 		}
 		return graphql.Null
 	}
-	res := resTmp.(*gen.Note)
+	res := resTmp.(*model.Note)
 	fc.Result = res
-	return ec.marshalNNote2ᚖgithubᚗcomᚋnotsogeniusᚑnetizenᚋgoᚑnotesᚋapiᚑgatewayᚋprotoᚋgenᚐNote(ctx, field.Selections, res)
+	return ec.marshalNNote2ᚖgithubᚗcomᚋnotsogeniusᚑnetizenᚋgoᚑnotesᚋapiᚑgatewayᚋgraphᚋmodelᚐNote(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Mutation_createNote(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -801,7 +770,7 @@ func (ec *executionContext) _Mutation_updateNote(ctx context.Context, field grap
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Mutation().UpdateNote(rctx, fc.Args["id"].(string), fc.Args["title"].(*string), fc.Args["content"].(*string))
+		return ec.resolvers.Mutation().UpdateNote(rctx, fc.Args["input"].(model.UpdateNoteInput))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -813,9 +782,9 @@ func (ec *executionContext) _Mutation_updateNote(ctx context.Context, field grap
 		}
 		return graphql.Null
 	}
-	res := resTmp.(*gen.Note)
+	res := resTmp.(*model.Note)
 	fc.Result = res
-	return ec.marshalNNote2ᚖgithubᚗcomᚋnotsogeniusᚑnetizenᚋgoᚑnotesᚋapiᚑgatewayᚋprotoᚋgenᚐNote(ctx, field.Selections, res)
+	return ec.marshalNNote2ᚖgithubᚗcomᚋnotsogeniusᚑnetizenᚋgoᚑnotesᚋapiᚑgatewayᚋgraphᚋmodelᚐNote(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Mutation_updateNote(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -870,7 +839,7 @@ func (ec *executionContext) _Mutation_deleteNote(ctx context.Context, field grap
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Mutation().DeleteNote(rctx, fc.Args["id"].(string))
+		return ec.resolvers.Mutation().DeleteNote(rctx, fc.Args["id"].(string), fc.Args["userId"].(string))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -911,7 +880,7 @@ func (ec *executionContext) fieldContext_Mutation_deleteNote(ctx context.Context
 	return fc, nil
 }
 
-func (ec *executionContext) _Note_id(ctx context.Context, field graphql.CollectedField, obj *gen.Note) (ret graphql.Marshaler) {
+func (ec *executionContext) _Note_id(ctx context.Context, field graphql.CollectedField, obj *model.Note) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_Note_id(ctx, field)
 	if err != nil {
 		return graphql.Null
@@ -925,7 +894,7 @@ func (ec *executionContext) _Note_id(ctx context.Context, field graphql.Collecte
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
 		ctx = rctx // use context from middleware stack in children
-		return obj.Id, nil
+		return obj.ID, nil
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -955,7 +924,7 @@ func (ec *executionContext) fieldContext_Note_id(_ context.Context, field graphq
 	return fc, nil
 }
 
-func (ec *executionContext) _Note_title(ctx context.Context, field graphql.CollectedField, obj *gen.Note) (ret graphql.Marshaler) {
+func (ec *executionContext) _Note_title(ctx context.Context, field graphql.CollectedField, obj *model.Note) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_Note_title(ctx, field)
 	if err != nil {
 		return graphql.Null
@@ -999,7 +968,7 @@ func (ec *executionContext) fieldContext_Note_title(_ context.Context, field gra
 	return fc, nil
 }
 
-func (ec *executionContext) _Note_content(ctx context.Context, field graphql.CollectedField, obj *gen.Note) (ret graphql.Marshaler) {
+func (ec *executionContext) _Note_content(ctx context.Context, field graphql.CollectedField, obj *model.Note) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_Note_content(ctx, field)
 	if err != nil {
 		return graphql.Null
@@ -1043,7 +1012,7 @@ func (ec *executionContext) fieldContext_Note_content(_ context.Context, field g
 	return fc, nil
 }
 
-func (ec *executionContext) _Note_userId(ctx context.Context, field graphql.CollectedField, obj *gen.Note) (ret graphql.Marshaler) {
+func (ec *executionContext) _Note_userId(ctx context.Context, field graphql.CollectedField, obj *model.Note) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_Note_userId(ctx, field)
 	if err != nil {
 		return graphql.Null
@@ -1057,7 +1026,7 @@ func (ec *executionContext) _Note_userId(ctx context.Context, field graphql.Coll
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
 		ctx = rctx // use context from middleware stack in children
-		return obj.UserId, nil
+		return obj.UserID, nil
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -1087,7 +1056,7 @@ func (ec *executionContext) fieldContext_Note_userId(_ context.Context, field gr
 	return fc, nil
 }
 
-func (ec *executionContext) _Note_createdAt(ctx context.Context, field graphql.CollectedField, obj *gen.Note) (ret graphql.Marshaler) {
+func (ec *executionContext) _Note_createdAt(ctx context.Context, field graphql.CollectedField, obj *model.Note) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_Note_createdAt(ctx, field)
 	if err != nil {
 		return graphql.Null
@@ -1131,7 +1100,7 @@ func (ec *executionContext) fieldContext_Note_createdAt(_ context.Context, field
 	return fc, nil
 }
 
-func (ec *executionContext) _Note_updatedAt(ctx context.Context, field graphql.CollectedField, obj *gen.Note) (ret graphql.Marshaler) {
+func (ec *executionContext) _Note_updatedAt(ctx context.Context, field graphql.CollectedField, obj *model.Note) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_Note_updatedAt(ctx, field)
 	if err != nil {
 		return graphql.Null
@@ -1175,8 +1144,8 @@ func (ec *executionContext) fieldContext_Note_updatedAt(_ context.Context, field
 	return fc, nil
 }
 
-func (ec *executionContext) _NoteChangeEvent_operation(ctx context.Context, field graphql.CollectedField, obj *model.NoteChangeEvent) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_NoteChangeEvent_operation(ctx, field)
+func (ec *executionContext) _NoteChange_type(ctx context.Context, field graphql.CollectedField, obj *model.NoteChange) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_NoteChange_type(ctx, field)
 	if err != nil {
 		return graphql.Null
 	}
@@ -1189,7 +1158,7 @@ func (ec *executionContext) _NoteChangeEvent_operation(ctx context.Context, fiel
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
 		ctx = rctx // use context from middleware stack in children
-		return obj.Operation, nil
+		return obj.Type, nil
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -1201,26 +1170,26 @@ func (ec *executionContext) _NoteChangeEvent_operation(ctx context.Context, fiel
 		}
 		return graphql.Null
 	}
-	res := resTmp.(string)
+	res := resTmp.(model.NoteChangeType)
 	fc.Result = res
-	return ec.marshalNString2string(ctx, field.Selections, res)
+	return ec.marshalNNoteChangeType2githubᚗcomᚋnotsogeniusᚑnetizenᚋgoᚑnotesᚋapiᚑgatewayᚋgraphᚋmodelᚐNoteChangeType(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) fieldContext_NoteChangeEvent_operation(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_NoteChange_type(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
-		Object:     "NoteChangeEvent",
+		Object:     "NoteChange",
 		Field:      field,
 		IsMethod:   false,
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type String does not have child fields")
+			return nil, errors.New("field of type NoteChangeType does not have child fields")
 		},
 	}
 	return fc, nil
 }
 
-func (ec *executionContext) _NoteChangeEvent_note(ctx context.Context, field graphql.CollectedField, obj *model.NoteChangeEvent) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_NoteChangeEvent_note(ctx, field)
+func (ec *executionContext) _NoteChange_note(ctx context.Context, field graphql.CollectedField, obj *model.NoteChange) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_NoteChange_note(ctx, field)
 	if err != nil {
 		return graphql.Null
 	}
@@ -1245,14 +1214,14 @@ func (ec *executionContext) _NoteChangeEvent_note(ctx context.Context, field gra
 		}
 		return graphql.Null
 	}
-	res := resTmp.(*gen.Note)
+	res := resTmp.(*model.Note)
 	fc.Result = res
-	return ec.marshalNNote2ᚖgithubᚗcomᚋnotsogeniusᚑnetizenᚋgoᚑnotesᚋapiᚑgatewayᚋprotoᚋgenᚐNote(ctx, field.Selections, res)
+	return ec.marshalNNote2ᚖgithubᚗcomᚋnotsogeniusᚑnetizenᚋgoᚑnotesᚋapiᚑgatewayᚋgraphᚋmodelᚐNote(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) fieldContext_NoteChangeEvent_note(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_NoteChange_note(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
-		Object:     "NoteChangeEvent",
+		Object:     "NoteChange",
 		Field:      field,
 		IsMethod:   false,
 		IsResolver: false,
@@ -1277,8 +1246,8 @@ func (ec *executionContext) fieldContext_NoteChangeEvent_note(_ context.Context,
 	return fc, nil
 }
 
-func (ec *executionContext) _Query_note(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_Query_note(ctx, field)
+func (ec *executionContext) _Query_getNote(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Query_getNote(ctx, field)
 	if err != nil {
 		return graphql.Null
 	}
@@ -1291,7 +1260,7 @@ func (ec *executionContext) _Query_note(ctx context.Context, field graphql.Colle
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Query().Note(rctx, fc.Args["id"].(string))
+		return ec.resolvers.Query().GetNote(rctx, fc.Args["id"].(string), fc.Args["userId"].(string))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -1300,12 +1269,12 @@ func (ec *executionContext) _Query_note(ctx context.Context, field graphql.Colle
 	if resTmp == nil {
 		return graphql.Null
 	}
-	res := resTmp.(*gen.Note)
+	res := resTmp.(*model.Note)
 	fc.Result = res
-	return ec.marshalONote2ᚖgithubᚗcomᚋnotsogeniusᚑnetizenᚋgoᚑnotesᚋapiᚑgatewayᚋprotoᚋgenᚐNote(ctx, field.Selections, res)
+	return ec.marshalONote2ᚖgithubᚗcomᚋnotsogeniusᚑnetizenᚋgoᚑnotesᚋapiᚑgatewayᚋgraphᚋmodelᚐNote(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) fieldContext_Query_note(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_Query_getNote(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Query",
 		Field:      field,
@@ -1336,15 +1305,15 @@ func (ec *executionContext) fieldContext_Query_note(ctx context.Context, field g
 		}
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_Query_note_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+	if fc.Args, err = ec.field_Query_getNote_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
 	return fc, nil
 }
 
-func (ec *executionContext) _Query_notes(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_Query_notes(ctx, field)
+func (ec *executionContext) _Query_listNotes(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Query_listNotes(ctx, field)
 	if err != nil {
 		return graphql.Null
 	}
@@ -1357,7 +1326,7 @@ func (ec *executionContext) _Query_notes(ctx context.Context, field graphql.Coll
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Query().Notes(rctx, fc.Args["userId"].(string))
+		return ec.resolvers.Query().ListNotes(rctx, fc.Args["userId"].(string))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -1369,12 +1338,12 @@ func (ec *executionContext) _Query_notes(ctx context.Context, field graphql.Coll
 		}
 		return graphql.Null
 	}
-	res := resTmp.([]*gen.Note)
+	res := resTmp.([]*model.Note)
 	fc.Result = res
-	return ec.marshalNNote2ᚕᚖgithubᚗcomᚋnotsogeniusᚑnetizenᚋgoᚑnotesᚋapiᚑgatewayᚋprotoᚋgenᚐNoteᚄ(ctx, field.Selections, res)
+	return ec.marshalNNote2ᚕᚖgithubᚗcomᚋnotsogeniusᚑnetizenᚋgoᚑnotesᚋapiᚑgatewayᚋgraphᚋmodelᚐNoteᚄ(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) fieldContext_Query_notes(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_Query_listNotes(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Query",
 		Field:      field,
@@ -1405,7 +1374,7 @@ func (ec *executionContext) fieldContext_Query_notes(ctx context.Context, field 
 		}
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_Query_notes_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+	if fc.Args, err = ec.field_Query_listNotes_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -1543,8 +1512,8 @@ func (ec *executionContext) fieldContext_Query___schema(_ context.Context, field
 	return fc, nil
 }
 
-func (ec *executionContext) _Subscription_noteChanged(ctx context.Context, field graphql.CollectedField) (ret func(ctx context.Context) graphql.Marshaler) {
-	fc, err := ec.fieldContext_Subscription_noteChanged(ctx, field)
+func (ec *executionContext) _Subscription_watchNotes(ctx context.Context, field graphql.CollectedField) (ret func(ctx context.Context) graphql.Marshaler) {
+	fc, err := ec.fieldContext_Subscription_watchNotes(ctx, field)
 	if err != nil {
 		return nil
 	}
@@ -1557,7 +1526,7 @@ func (ec *executionContext) _Subscription_noteChanged(ctx context.Context, field
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Subscription().NoteChanged(rctx, fc.Args["userId"].(string))
+		return ec.resolvers.Subscription().WatchNotes(rctx, fc.Args["userId"].(string))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -1571,7 +1540,7 @@ func (ec *executionContext) _Subscription_noteChanged(ctx context.Context, field
 	}
 	return func(ctx context.Context) graphql.Marshaler {
 		select {
-		case res, ok := <-resTmp.(<-chan *model.NoteChangeEvent):
+		case res, ok := <-resTmp.(<-chan *model.NoteChange):
 			if !ok {
 				return nil
 			}
@@ -1579,7 +1548,7 @@ func (ec *executionContext) _Subscription_noteChanged(ctx context.Context, field
 				w.Write([]byte{'{'})
 				graphql.MarshalString(field.Alias).MarshalGQL(w)
 				w.Write([]byte{':'})
-				ec.marshalNNoteChangeEvent2ᚖgithubᚗcomᚋnotsogeniusᚑnetizenᚋgoᚑnotesᚋapiᚑgatewayᚋgraphᚋmodelᚐNoteChangeEvent(ctx, field.Selections, res).MarshalGQL(w)
+				ec.marshalNNoteChange2ᚖgithubᚗcomᚋnotsogeniusᚑnetizenᚋgoᚑnotesᚋapiᚑgatewayᚋgraphᚋmodelᚐNoteChange(ctx, field.Selections, res).MarshalGQL(w)
 				w.Write([]byte{'}'})
 			})
 		case <-ctx.Done():
@@ -1588,7 +1557,7 @@ func (ec *executionContext) _Subscription_noteChanged(ctx context.Context, field
 	}
 }
 
-func (ec *executionContext) fieldContext_Subscription_noteChanged(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_Subscription_watchNotes(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Subscription",
 		Field:      field,
@@ -1596,12 +1565,12 @@ func (ec *executionContext) fieldContext_Subscription_noteChanged(ctx context.Co
 		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			switch field.Name {
-			case "operation":
-				return ec.fieldContext_NoteChangeEvent_operation(ctx, field)
+			case "type":
+				return ec.fieldContext_NoteChange_type(ctx, field)
 			case "note":
-				return ec.fieldContext_NoteChangeEvent_note(ctx, field)
+				return ec.fieldContext_NoteChange_note(ctx, field)
 			}
-			return nil, fmt.Errorf("no field named %q was found under type NoteChangeEvent", field.Name)
+			return nil, fmt.Errorf("no field named %q was found under type NoteChange", field.Name)
 		},
 	}
 	defer func() {
@@ -1611,7 +1580,7 @@ func (ec *executionContext) fieldContext_Subscription_noteChanged(ctx context.Co
 		}
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_Subscription_noteChanged_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+	if fc.Args, err = ec.field_Subscription_watchNotes_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -3569,6 +3538,95 @@ func (ec *executionContext) fieldContext___Type_isOneOf(_ context.Context, field
 
 // region    **************************** input.gotpl *****************************
 
+func (ec *executionContext) unmarshalInputCreateNoteInput(ctx context.Context, obj any) (model.CreateNoteInput, error) {
+	var it model.CreateNoteInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"title", "content", "userId"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "title":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("title"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Title = data
+		case "content":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("content"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Content = data
+		case "userId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("userId"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.UserID = data
+		}
+	}
+
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputUpdateNoteInput(ctx context.Context, obj any) (model.UpdateNoteInput, error) {
+	var it model.UpdateNoteInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"id", "title", "content", "userId"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "id":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("id"))
+			data, err := ec.unmarshalNID2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ID = data
+		case "title":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("title"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Title = data
+		case "content":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("content"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Content = data
+		case "userId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("userId"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.UserID = data
+		}
+	}
+
+	return it, nil
+}
+
 // endregion **************************** input.gotpl *****************************
 
 // region    ************************** interface.gotpl ***************************
@@ -3642,7 +3700,7 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 
 var noteImplementors = []string{"Note"}
 
-func (ec *executionContext) _Note(ctx context.Context, sel ast.SelectionSet, obj *gen.Note) graphql.Marshaler {
+func (ec *executionContext) _Note(ctx context.Context, sel ast.SelectionSet, obj *model.Note) graphql.Marshaler {
 	fields := graphql.CollectFields(ec.OperationContext, sel, noteImplementors)
 
 	out := graphql.NewFieldSet(fields)
@@ -3766,24 +3824,24 @@ func (ec *executionContext) _Note(ctx context.Context, sel ast.SelectionSet, obj
 	return out
 }
 
-var noteChangeEventImplementors = []string{"NoteChangeEvent"}
+var noteChangeImplementors = []string{"NoteChange"}
 
-func (ec *executionContext) _NoteChangeEvent(ctx context.Context, sel ast.SelectionSet, obj *model.NoteChangeEvent) graphql.Marshaler {
-	fields := graphql.CollectFields(ec.OperationContext, sel, noteChangeEventImplementors)
+func (ec *executionContext) _NoteChange(ctx context.Context, sel ast.SelectionSet, obj *model.NoteChange) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, noteChangeImplementors)
 
 	out := graphql.NewFieldSet(fields)
 	deferred := make(map[string]*graphql.FieldSet)
 	for i, field := range fields {
 		switch field.Name {
 		case "__typename":
-			out.Values[i] = graphql.MarshalString("NoteChangeEvent")
-		case "operation":
-			out.Values[i] = ec._NoteChangeEvent_operation(ctx, field, obj)
+			out.Values[i] = graphql.MarshalString("NoteChange")
+		case "type":
+			out.Values[i] = ec._NoteChange_type(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
 		case "note":
-			out.Values[i] = ec._NoteChangeEvent_note(ctx, field, obj)
+			out.Values[i] = ec._NoteChange_note(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -3829,7 +3887,7 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 		switch field.Name {
 		case "__typename":
 			out.Values[i] = graphql.MarshalString("Query")
-		case "note":
+		case "getNote":
 			field := field
 
 			innerFunc := func(ctx context.Context, _ *graphql.FieldSet) (res graphql.Marshaler) {
@@ -3838,7 +3896,7 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 						ec.Error(ctx, ec.Recover(ctx, r))
 					}
 				}()
-				res = ec._Query_note(ctx, field)
+				res = ec._Query_getNote(ctx, field)
 				return res
 			}
 
@@ -3848,7 +3906,7 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
-		case "notes":
+		case "listNotes":
 			field := field
 
 			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
@@ -3857,7 +3915,7 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 						ec.Error(ctx, ec.Recover(ctx, r))
 					}
 				}()
-				res = ec._Query_notes(ctx, field)
+				res = ec._Query_listNotes(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
@@ -3914,8 +3972,8 @@ func (ec *executionContext) _Subscription(ctx context.Context, sel ast.Selection
 	}
 
 	switch fields[0].Name {
-	case "noteChanged":
-		return ec._Subscription_noteChanged(ctx, fields[0])
+	case "watchNotes":
+		return ec._Subscription_watchNotes(ctx, fields[0])
 	default:
 		panic("unknown field " + strconv.Quote(fields[0].Name))
 	}
@@ -4271,6 +4329,11 @@ func (ec *executionContext) marshalNBoolean2bool(ctx context.Context, sel ast.Se
 	return res
 }
 
+func (ec *executionContext) unmarshalNCreateNoteInput2githubᚗcomᚋnotsogeniusᚑnetizenᚋgoᚑnotesᚋapiᚑgatewayᚋgraphᚋmodelᚐCreateNoteInput(ctx context.Context, v any) (model.CreateNoteInput, error) {
+	res, err := ec.unmarshalInputCreateNoteInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) unmarshalNID2string(ctx context.Context, v any) (string, error) {
 	res, err := graphql.UnmarshalID(v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -4286,11 +4349,11 @@ func (ec *executionContext) marshalNID2string(ctx context.Context, sel ast.Selec
 	return res
 }
 
-func (ec *executionContext) marshalNNote2githubᚗcomᚋnotsogeniusᚑnetizenᚋgoᚑnotesᚋapiᚑgatewayᚋprotoᚋgenᚐNote(ctx context.Context, sel ast.SelectionSet, v gen.Note) graphql.Marshaler {
+func (ec *executionContext) marshalNNote2githubᚗcomᚋnotsogeniusᚑnetizenᚋgoᚑnotesᚋapiᚑgatewayᚋgraphᚋmodelᚐNote(ctx context.Context, sel ast.SelectionSet, v model.Note) graphql.Marshaler {
 	return ec._Note(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNNote2ᚕᚖgithubᚗcomᚋnotsogeniusᚑnetizenᚋgoᚑnotesᚋapiᚑgatewayᚋprotoᚋgenᚐNoteᚄ(ctx context.Context, sel ast.SelectionSet, v []*gen.Note) graphql.Marshaler {
+func (ec *executionContext) marshalNNote2ᚕᚖgithubᚗcomᚋnotsogeniusᚑnetizenᚋgoᚑnotesᚋapiᚑgatewayᚋgraphᚋmodelᚐNoteᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Note) graphql.Marshaler {
 	ret := make(graphql.Array, len(v))
 	var wg sync.WaitGroup
 	isLen1 := len(v) == 1
@@ -4314,7 +4377,7 @@ func (ec *executionContext) marshalNNote2ᚕᚖgithubᚗcomᚋnotsogeniusᚑneti
 			if !isLen1 {
 				defer wg.Done()
 			}
-			ret[i] = ec.marshalNNote2ᚖgithubᚗcomᚋnotsogeniusᚑnetizenᚋgoᚑnotesᚋapiᚑgatewayᚋprotoᚋgenᚐNote(ctx, sel, v[i])
+			ret[i] = ec.marshalNNote2ᚖgithubᚗcomᚋnotsogeniusᚑnetizenᚋgoᚑnotesᚋapiᚑgatewayᚋgraphᚋmodelᚐNote(ctx, sel, v[i])
 		}
 		if isLen1 {
 			f(i)
@@ -4334,7 +4397,7 @@ func (ec *executionContext) marshalNNote2ᚕᚖgithubᚗcomᚋnotsogeniusᚑneti
 	return ret
 }
 
-func (ec *executionContext) marshalNNote2ᚖgithubᚗcomᚋnotsogeniusᚑnetizenᚋgoᚑnotesᚋapiᚑgatewayᚋprotoᚋgenᚐNote(ctx context.Context, sel ast.SelectionSet, v *gen.Note) graphql.Marshaler {
+func (ec *executionContext) marshalNNote2ᚖgithubᚗcomᚋnotsogeniusᚑnetizenᚋgoᚑnotesᚋapiᚑgatewayᚋgraphᚋmodelᚐNote(ctx context.Context, sel ast.SelectionSet, v *model.Note) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -4344,18 +4407,34 @@ func (ec *executionContext) marshalNNote2ᚖgithubᚗcomᚋnotsogeniusᚑnetizen
 	return ec._Note(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNNoteChangeEvent2githubᚗcomᚋnotsogeniusᚑnetizenᚋgoᚑnotesᚋapiᚑgatewayᚋgraphᚋmodelᚐNoteChangeEvent(ctx context.Context, sel ast.SelectionSet, v model.NoteChangeEvent) graphql.Marshaler {
-	return ec._NoteChangeEvent(ctx, sel, &v)
+func (ec *executionContext) marshalNNoteChange2githubᚗcomᚋnotsogeniusᚑnetizenᚋgoᚑnotesᚋapiᚑgatewayᚋgraphᚋmodelᚐNoteChange(ctx context.Context, sel ast.SelectionSet, v model.NoteChange) graphql.Marshaler {
+	return ec._NoteChange(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNNoteChangeEvent2ᚖgithubᚗcomᚋnotsogeniusᚑnetizenᚋgoᚑnotesᚋapiᚑgatewayᚋgraphᚋmodelᚐNoteChangeEvent(ctx context.Context, sel ast.SelectionSet, v *model.NoteChangeEvent) graphql.Marshaler {
+func (ec *executionContext) marshalNNoteChange2ᚖgithubᚗcomᚋnotsogeniusᚑnetizenᚋgoᚑnotesᚋapiᚑgatewayᚋgraphᚋmodelᚐNoteChange(ctx context.Context, sel ast.SelectionSet, v *model.NoteChange) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
 		}
 		return graphql.Null
 	}
-	return ec._NoteChangeEvent(ctx, sel, v)
+	return ec._NoteChange(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNNoteChangeType2githubᚗcomᚋnotsogeniusᚑnetizenᚋgoᚑnotesᚋapiᚑgatewayᚋgraphᚋmodelᚐNoteChangeType(ctx context.Context, v any) (model.NoteChangeType, error) {
+	tmp, err := graphql.UnmarshalString(v)
+	res := model.NoteChangeType(tmp)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNNoteChangeType2githubᚗcomᚋnotsogeniusᚑnetizenᚋgoᚑnotesᚋapiᚑgatewayᚋgraphᚋmodelᚐNoteChangeType(ctx context.Context, sel ast.SelectionSet, v model.NoteChangeType) graphql.Marshaler {
+	res := graphql.MarshalString(string(v))
+	if res == graphql.Null {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
+		}
+	}
+	return res
 }
 
 func (ec *executionContext) unmarshalNString2string(ctx context.Context, v any) (string, error) {
@@ -4371,6 +4450,11 @@ func (ec *executionContext) marshalNString2string(ctx context.Context, sel ast.S
 		}
 	}
 	return res
+}
+
+func (ec *executionContext) unmarshalNUpdateNoteInput2githubᚗcomᚋnotsogeniusᚑnetizenᚋgoᚑnotesᚋapiᚑgatewayᚋgraphᚋmodelᚐUpdateNoteInput(ctx context.Context, v any) (model.UpdateNoteInput, error) {
+	res, err := ec.unmarshalInputUpdateNoteInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
 }
 
 func (ec *executionContext) marshalN__Directive2githubᚗcomᚋ99designsᚋgqlgenᚋgraphqlᚋintrospectionᚐDirective(ctx context.Context, sel ast.SelectionSet, v introspection.Directive) graphql.Marshaler {
@@ -4650,7 +4734,7 @@ func (ec *executionContext) marshalOBoolean2ᚖbool(ctx context.Context, sel ast
 	return res
 }
 
-func (ec *executionContext) marshalONote2ᚖgithubᚗcomᚋnotsogeniusᚑnetizenᚋgoᚑnotesᚋapiᚑgatewayᚋprotoᚋgenᚐNote(ctx context.Context, sel ast.SelectionSet, v *gen.Note) graphql.Marshaler {
+func (ec *executionContext) marshalONote2ᚖgithubᚗcomᚋnotsogeniusᚑnetizenᚋgoᚑnotesᚋapiᚑgatewayᚋgraphᚋmodelᚐNote(ctx context.Context, sel ast.SelectionSet, v *model.Note) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}

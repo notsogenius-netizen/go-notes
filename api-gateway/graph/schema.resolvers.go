@@ -13,50 +13,181 @@ import (
 )
 
 // CreateNote is the resolver for the createNote field.
-func (r *mutationResolver) CreateNote(ctx context.Context, userID string, title string, content string) (*gen.Note, error) {
-	note, err := r.NotesClient.CreateNote(ctx, userID, title, content)
+func (r *mutationResolver) CreateNote(ctx context.Context, input model.CreateNoteInput) (*model.Note, error) {
+	note, err := r.NotesClient.CreateNote(ctx, input.UserID, input.Title, input.Content)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create note: %w", err)
 	}
-	
+
 	// Convert to GraphQL note
-	
-	return note, nil
+
+	return &model.Note{
+        ID:        note.Id,
+        Title:     note.Title,
+        Content:   note.Content,
+        UserID:    note.UserId,
+        CreatedAt: note.CreatedAt.AsTime(),
+        UpdatedAt: note.UpdatedAt.AsTime(),
+    }, nil
 }
 
 // UpdateNote is the resolver for the updateNote field.
-func (r *mutationResolver) UpdateNote(ctx context.Context, id string, title *string, content *string) (*gen.Note, error) {
-	panic(fmt.Errorf("not implemented: UpdateNote - updateNote"))
+func (r *mutationResolver) UpdateNote(ctx context.Context, input model.UpdateNoteInput) (*model.Note, error) {
+	note, err := r.NotesClient.UpdateNote(ctx, input.ID, input.Title, input.Content)
+	if err != nil {
+		return nil, fmt.Errorf("failed to update note: %w", err)
+	}
+
+	// Convert to GraphQL note
+
+	return &model.Note{
+        ID:        note.Id,
+        Title:     note.Title,
+        Content:   note.Content,
+        UserID:    note.UserId,
+        CreatedAt: note.CreatedAt.AsTime(),
+        UpdatedAt: note.UpdatedAt.AsTime(),
+    }, nil
 }
 
 // DeleteNote is the resolver for the deleteNote field.
-func (r *mutationResolver) DeleteNote(ctx context.Context, id string) (bool, error) {
-	panic(fmt.Errorf("not implemented: DeleteNote - deleteNote"))
+func (r *mutationResolver) DeleteNote(ctx context.Context, id string, userID string) (bool, error) {
+	err := r.NotesClient.DeleteNote(ctx, id)
+	if err != nil {
+		return false, fmt.Errorf("failed to delete note: %w", err)
+	}
+
+	return true, nil
 }
 
 // CreatedAt is the resolver for the createdAt field.
-func (r *noteResolver) CreatedAt(ctx context.Context, obj *gen.Note) (string, error) {
-	panic(fmt.Errorf("not implemented: CreatedAt - createdAt"))
+func (r *noteResolver) CreatedAt(ctx context.Context, obj *model.Note) (string, error) {
+
+	return obj.CreatedAt.String(), nil
 }
 
 // UpdatedAt is the resolver for the updatedAt field.
-func (r *noteResolver) UpdatedAt(ctx context.Context, obj *gen.Note) (string, error) {
-	panic(fmt.Errorf("not implemented: UpdatedAt - updatedAt"))
+func (r *noteResolver) UpdatedAt(ctx context.Context, obj *model.Note) (string, error) {
+	
+	return obj.UpdatedAt.String(), nil
 }
 
-// Note is the resolver for the note field.
-func (r *queryResolver) Note(ctx context.Context, id string) (*gen.Note, error) {
-	panic(fmt.Errorf("not implemented: Note - note"))
+// Type is the resolver for the type field.
+func (r *noteChangeResolver) Type(ctx context.Context, obj *model.NoteChange) (model.NoteChangeType, error) {
+	switch obj.Type {
+	case model.Created:
+		return model.Created, nil
+	case model.Updated:
+		return model.Updated, nil
+	case model.Deleted:
+		return model.Deleted, nil
+	default:
+		return "", fmt.Errorf("unknown note change type: %v", obj.Type)
+	}
 }
 
-// Notes is the resolver for the notes field.
-func (r *queryResolver) Notes(ctx context.Context, userID string) ([]*gen.Note, error) {
-	panic(fmt.Errorf("not implemented: Notes - notes"))
+// GetNote is the resolver for the getNote field.
+func (r *queryResolver) GetNote(ctx context.Context, id string, userID string) (*model.Note, error) {
+	note, err := r.NotesClient.GetNote(ctx, id, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	return &model.Note{
+        ID:        note.Id,
+        Title:     note.Title,
+        Content:   note.Content,
+        UserID:    note.UserId,
+        CreatedAt: note.CreatedAt.AsTime(),
+        UpdatedAt: note.UpdatedAt.AsTime(),
+    }, nil
 }
 
-// NoteChanged is the resolver for the noteChanged field.
-func (r *subscriptionResolver) NoteChanged(ctx context.Context, userID string) (<-chan *model.NoteChangeEvent, error) {
-	panic(fmt.Errorf("not implemented: NoteChanged - noteChanged"))
+// ListNotes is the resolver for the listNotes field.
+func (r *queryResolver) ListNotes(ctx context.Context, userID string) ([]*model.Note, error) {
+	note, err := r.NotesClient.ListNotes(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list notes: %w", err)
+	}
+
+	var notes []*model.Note
+
+	for _, n := range note {
+		notes = append(notes, &model.Note{
+			ID:        n.Id,
+			Title:     n.Title,
+			Content:   n.Content,
+			UserID:    n.UserId,
+			CreatedAt: n.CreatedAt.AsTime(),
+			UpdatedAt: n.UpdatedAt.AsTime(),
+		})
+	}
+	return notes, nil
+}
+
+// WatchNotes is the resolver for the watchNotes field.
+func (r *subscriptionResolver) WatchNotes(ctx context.Context, userID string) (<-chan *model.NoteChange, error) {
+	noteChangeChan := make(chan *model.NoteChange)
+	
+	// Create a channel for gRPC NoteChange events
+	grpcChangeChan := make(chan *gen.NoteChange)
+	
+	// Start the gRPC subscription
+	err := r.NotesClient.SubscribeToNoteChanges(ctx, userID, grpcChangeChan)
+	if err != nil {
+		return nil, fmt.Errorf("failed to subscribe to note changes: %w", err)
+	}
+	
+	// Start a goroutine to convert gRPC events to GraphQL events
+	go func() {
+		defer close(noteChangeChan)
+		
+		for {
+			select {
+			case grpcChange, ok := <-grpcChangeChan:
+				if !ok {
+					// Channel closed
+					return
+				}
+				
+				// Convert gRPC change type to GraphQL enum
+				var changeType model.NoteChangeType
+				switch grpcChange.Type {
+				case gen.NoteChange_CREATED:
+					changeType = model.Created
+				case gen.NoteChange_UPDATED:
+					changeType = model.Updated
+				case gen.NoteChange_DELETED:
+					changeType = model.Deleted
+				default:
+					// Skip unknown change types
+					continue
+				}
+				
+				// Convert the note
+				note := &model.Note{
+					ID:        grpcChange.Note.Id,
+					Title:     grpcChange.Note.Title,
+					Content:   grpcChange.Note.Content,
+					UserID:    grpcChange.Note.UserId,
+					CreatedAt: grpcChange.Note.CreatedAt.AsTime(),
+					UpdatedAt: grpcChange.Note.UpdatedAt.AsTime(),
+				}
+				
+				// Send the GraphQL NoteChange
+				noteChangeChan <- &model.NoteChange{
+					Type: changeType,
+					Note: note,
+				}
+				
+			case <-ctx.Done():
+				// Context canceled
+				return
+			}
+		}
+	}()
+	
+	return noteChangeChan, nil
 }
 
 // Mutation returns MutationResolver implementation.
@@ -64,6 +195,9 @@ func (r *Resolver) Mutation() MutationResolver { return &mutationResolver{r} }
 
 // Note returns NoteResolver implementation.
 func (r *Resolver) Note() NoteResolver { return &noteResolver{r} }
+
+// NoteChange returns NoteChangeResolver implementation.
+func (r *Resolver) NoteChange() NoteChangeResolver { return &noteChangeResolver{r} }
 
 // Query returns QueryResolver implementation.
 func (r *Resolver) Query() QueryResolver { return &queryResolver{r} }
@@ -73,20 +207,6 @@ func (r *Resolver) Subscription() SubscriptionResolver { return &subscriptionRes
 
 type mutationResolver struct{ *Resolver }
 type noteResolver struct{ *Resolver }
+type noteChangeResolver struct{ *Resolver }
 type queryResolver struct{ *Resolver }
 type subscriptionResolver struct{ *Resolver }
-
-// !!! WARNING !!!
-// The code below was going to be deleted when updating resolvers. It has been copied here so you have
-// one last chance to move it out of harms way if you want. There are two reasons this happens:
-//  - When renaming or deleting a resolver the old code will be put in here. You can safely delete
-//    it when you're done.
-//  - You have helper methods in this file. Move them out to keep these resolver files clean.
-/*
-	func (r *mutationResolver) CreateTodo(ctx context.Context, input model.NewTodo) (*model.Todo, error) {
-	panic(fmt.Errorf("not implemented: CreateTodo - createTodo"))
-}
-func (r *queryResolver) Todos(ctx context.Context) ([]*model.Todo, error) {
-	panic(fmt.Errorf("not implemented: Todos - todos"))
-}
-*/

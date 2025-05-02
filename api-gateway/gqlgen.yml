@@ -129,6 +129,12 @@ autobind:
 # modelgen, the others will be allowed when binding to fields. Configure them to
 # your liking
 models:
+  Note:
+    model: github.com/notsogenius-netizen/go-notes/api-gateway/graph/model.Note
+  NoteChange:
+    model: github.com/notsogenius-netizen/go-notes/api-gateway/graph/model.NoteChange
+  NoteChangeType:
+    model: github.com/notsogenius-netizen/go-notes/api-gateway/graph/model.NoteChangeType
   ID:
     model:
       - github.com/99designs/gqlgen/graphql.ID

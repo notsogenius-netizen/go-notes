@@ -7,22 +7,41 @@ type Note {
   updatedAt: String!
 }
 
-type Query {
-  note(id: ID!): Note
-  notes(userId: String!): [Note!]!
+input CreateNoteInput {
+  title: String!
+  content: String!
+  userId: String!
 }
 
-type Mutation {
-  createNote(userId: String!, title: String!, content: String!): Note!
-  updateNote(id: ID!, title: String, content: String): Note!
-  deleteNote(id: ID!): Boolean!
+input UpdateNoteInput {
+  id: ID!
+  title: String!
+  content: String!
+  userId: String!
 }
 
-type NoteChangeEvent {
-  operation: String!  # CREATE, UPDATE, DELETE
+type NoteChange {
+  type: NoteChangeType!
   note: Note!
 }
 
+enum NoteChangeType {
+  CREATED
+  UPDATED
+  DELETED
+}
+
+type Query {
+  getNote(id: ID!, userId: String!): Note
+  listNotes(userId: String!): [Note!]!
+}
+
+type Mutation {
+  createNote(input: CreateNoteInput!): Note!
+  updateNote(input: UpdateNoteInput!): Note!
+  deleteNote(id: ID!, userId: String!): Boolean!
+}
+
 type Subscription {
-  noteChanged(userId: String!): NoteChangeEvent!
+  watchNotes(userId: String!): NoteChange!
 }

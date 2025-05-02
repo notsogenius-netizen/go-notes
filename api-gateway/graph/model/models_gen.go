@@ -2,20 +2,24 @@
 
 package model
 
-import (
-	"github.com/notsogenius-netizen/go-notes/api-gateway/proto/gen"
-)
-
-type Mutation struct {
+type CreateNoteInput struct {
+	Title   string `json:"title"`
+	Content string `json:"content"`
+	UserID  string `json:"userId"`
 }
 
-type NoteChangeEvent struct {
-	Operation string    `json:"operation"`
-	Note      *gen.Note `json:"note"`
+type Mutation struct {
 }
 
 type Query struct {
 }
 
 type Subscription struct {
+}
+
+type UpdateNoteInput struct {
+	ID      string `json:"id"`
+	Title   string `json:"title"`
+	Content string `json:"content"`
+	UserID  string `json:"userId"`
 }
