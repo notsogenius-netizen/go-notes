@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	notesServiceAddr = "localhost:50051" // Your Notes service address
+	notesServiceAddr = "localhost:50051"
 	defaultPort      = "8080"
 )
 
@@ -23,18 +23,15 @@ func main() {
 	}
 	defer notesClient.Close()
 
-	// Configure GraphQL server
 	srv := handler.NewDefaultServer(graph.NewExecutableSchema(graph.Config{
 		Resolvers: &graph.Resolver{
 			NotesClient: notesClient,
 		},
 	}))
 
-	// Set up HTTP routes
 	http.Handle("/", playground.Handler("GraphQL playground", "/query"))
-	http.Handle("/query", srv) // Removed auth middleware
+	http.Handle("/query", srv)
 
-	// Start server
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = defaultPort

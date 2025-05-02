@@ -19,8 +19,6 @@ func (r *mutationResolver) CreateNote(ctx context.Context, input model.CreateNot
 		return nil, fmt.Errorf("failed to create note: %w", err)
 	}
 
-	// Convert to GraphQL note
-
 	return &model.Note{
         ID:        note.Id,
         Title:     note.Title,
@@ -37,8 +35,6 @@ func (r *mutationResolver) UpdateNote(ctx context.Context, input model.UpdateNot
 	if err != nil {
 		return nil, fmt.Errorf("failed to update note: %w", err)
 	}
-
-	// Convert to GraphQL note
 
 	return &model.Note{
         ID:        note.Id,
@@ -129,16 +125,13 @@ func (r *queryResolver) ListNotes(ctx context.Context, userID string) ([]*model.
 func (r *subscriptionResolver) WatchNotes(ctx context.Context, userID string) (<-chan *model.NoteChange, error) {
 	noteChangeChan := make(chan *model.NoteChange)
 	
-	// Create a channel for gRPC NoteChange events
 	grpcChangeChan := make(chan *gen.NoteChange)
 	
-	// Start the gRPC subscription
 	err := r.NotesClient.SubscribeToNoteChanges(ctx, userID, grpcChangeChan)
 	if err != nil {
 		return nil, fmt.Errorf("failed to subscribe to note changes: %w", err)
 	}
 	
-	// Start a goroutine to convert gRPC events to GraphQL events
 	go func() {
 		defer close(noteChangeChan)
 		
@@ -146,11 +139,9 @@ func (r *subscriptionResolver) WatchNotes(ctx context.Context, userID string) (<
 			select {
 			case grpcChange, ok := <-grpcChangeChan:
 				if !ok {
-					// Channel closed
 					return
 				}
 				
-				// Convert gRPC change type to GraphQL enum
 				var changeType model.NoteChangeType
 				switch grpcChange.Type {
 				case gen.NoteChange_CREATED:
@@ -160,11 +151,9 @@ func (r *subscriptionResolver) WatchNotes(ctx context.Context, userID string) (<
 				case gen.NoteChange_DELETED:
 					changeType = model.Deleted
 				default:
-					// Skip unknown change types
 					continue
 				}
 				
-				// Convert the note
 				note := &model.Note{
 					ID:        grpcChange.Note.Id,
 					Title:     grpcChange.Note.Title,
@@ -174,14 +163,12 @@ func (r *subscriptionResolver) WatchNotes(ctx context.Context, userID string) (<
 					UpdatedAt: grpcChange.Note.UpdatedAt.AsTime(),
 				}
 				
-				// Send the GraphQL NoteChange
 				noteChangeChan <- &model.NoteChange{
 					Type: changeType,
 					Note: note,
 				}
 				
 			case <-ctx.Done():
-				// Context canceled
 				return
 			}
 		}
